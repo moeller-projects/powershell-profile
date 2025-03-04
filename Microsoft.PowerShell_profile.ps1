@@ -6,6 +6,17 @@ $debug = $false
 # Define the path to the file that stores the last execution time
 $timeFilePath = "$env:USERPROFILE\Documents\PowerShell\LastExecutionTime.txt"
 
+# Check if the directory exists; if not, create it
+$directoryPath = [System.IO.Path]::GetDirectoryName($timeFilePath)
+if (-not (Test-Path -Path $directoryPath)) {
+    New-Item -ItemType Directory -Path $directoryPath | Out-Null
+}
+
+# Check if the file exists; if not, create it
+if (-not (Test-Path -Path $timeFilePath)) {
+    New-Item -ItemType File -Path $timeFilePath -Force | Out-Null
+}
+
 # Define the update interval in days, set to -1 to always check
 $updateInterval = 7
 
