@@ -1,6 +1,28 @@
 ### PowerShell Profile Refactor
 ### Version 1.04 - Refactored
 
+$debug = $false
+
+# Define the path to the file that stores the last execution time
+$timeFilePath = "$env:USERPROFILE\Documents\PowerShell\LastExecutionTime.txt"
+
+# Define the update interval in days, set to -1 to always check
+$updateInterval = 7
+
+if ($debug) {
+    Write-Host "#######################################" -ForegroundColor Red
+    Write-Host "#           Debug mode enabled        #" -ForegroundColor Red
+    Write-Host "#          ONLY FOR DEVELOPMENT       #" -ForegroundColor Red
+    Write-Host "#                                     #" -ForegroundColor Red
+    Write-Host "#       IF YOU ARE NOT DEVELOPING     #" -ForegroundColor Red
+    Write-Host "#       JUST RUN \`Update-Profile\`     #" -ForegroundColor Red
+    Write-Host "#        to discard all changes       #" -ForegroundColor Red
+    Write-Host "#   and update to the latest profile  #" -ForegroundColor Red
+    Write-Host "#               version               #" -ForegroundColor Red
+    Write-Host "#######################################" -ForegroundColor Red
+}
+
+
 #################################################################################################################################
 ############                                                                                                         ############
 ############                                          !!!   WARNING:   !!!                                           ############
@@ -27,7 +49,7 @@ function Add-Command-Description {
         [string]$Category,
         [string[]]$Aliases = @()
     )
-    
+
     # Validate that CommandName is not null or empty
     if ([string]::IsNullOrWhiteSpace($CommandName)) {
         Write-Error "CommandName must be a non-empty string."
@@ -39,7 +61,7 @@ function Add-Command-Description {
         Write-Error "Description must be a non-empty string."
         return
     }
-    
+
     $commandDescription = [PSCustomObject]@{
         CommandName = $CommandName
         Description = $Description
@@ -57,10 +79,10 @@ if ([bool]([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsSystem) 
 }
 
 # Initial GitHub.com connectivity check with 1 second timeout
-$canConnectToGitHub = Test-Connection github.com -Count 1 -Quiet -TimeoutSeconds 1
+$global:canConnectToGitHub = Test-Connection github.com -Count 1 -Quiet -TimeoutSeconds 1
 
 # Import Modules and External Profiles
-function Import-RequiredModules {    
+function Import-RequiredModules {
     $modules = @('Terminal-Icons', 'PSMenu', 'InteractiveMenu', 'PSReadLine', 'CompletionPredictor', 'PSFzf')
     $missingModules = $modules | Where-Object { -not (Get-Module -ListAvailable -Name $_) }
     if ($missingModules) {
@@ -89,6 +111,17 @@ function Test-CommandExists {
     $exists = $null -ne (Get-Command $command -ErrorAction SilentlyContinue)
     return $exists
 }
+
+# Editor Configuration
+$EDITOR = if (Test-CommandExists nvim) { 'nvim' }
+elseif (Test-CommandExists pvim) { 'pvim' }
+elseif (Test-CommandExists vim) { 'vim' }
+elseif (Test-CommandExists vi) { 'vi' }
+elseif (Test-CommandExists code) { 'code' }
+elseif (Test-CommandExists notepad++) { 'notepad++' }
+elseif (Test-CommandExists sublime_text) { 'sublime_text' }
+else { 'notepad' }
+Set-Alias -Name vim -Value $EDITOR
 
 class InfoAttribute : System.Attribute {
     [string]$Description
@@ -121,7 +154,7 @@ function New-MenuItem([String]$Name, [String]$Value) {
 #region System
 
 Add-Command-Description -CommandName "Update-Profile" -Description "Checks for profile updates from a remote repository and updates if necessary" -Category "System"
-function Update-Profile {    
+function Update-Profile {
     if (-not $global:canConnectToGitHub) {
         Write-Host "Skipping profile update check due to GitHub.com not responding within 1 second." -ForegroundColor Yellow
         return
@@ -135,14 +168,31 @@ function Update-Profile {
         if ($newhash.Hash -ne $oldhash.Hash) {
             Copy-Item -Path "$env:temp/Microsoft.PowerShell_profile.ps1" -Destination $PROFILE -Force
             Write-Host "Profile has been updated. Please restart your shell to reflect changes" -ForegroundColor Magenta
+        } else {
+            Write-Host "Profile is up to date." -ForegroundColor Green
         }
     } catch {
-        Write-Error "Unable to check for `$profile updates"
+        Write-Error "Unable to check for `$profile updates: $_"
     } finally {
         Remove-Item "$env:temp/Microsoft.PowerShell_profile.ps1" -ErrorAction SilentlyContinue
     }
 }
-Update-Profile
+
+# Check if not in debug mode AND (updateInterval is -1 OR file doesn't exist OR time difference is greater than the update interval)
+if (-not $debug -and `
+    ($updateInterval -eq -1 -or `
+      -not (Test-Path $timeFilePath) -or `
+      ((Get-Date) - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null)).TotalDays -gt $updateInterval)) {
+
+    Update-Profile
+    $currentTime = Get-Date -Format 'yyyy-MM-dd'
+    $currentTime | Out-File -FilePath $timeFilePath
+
+} elseif (-not $debug) {
+    Write-Warning "Profile update skipped. Last update check was within the last $updateInterval day(s)."
+} else {
+    Write-Warning "Skipping profile update check in debug mode"
+}
 
 Add-Command-Description -CommandName "Update-PowerShell" -Description "Checks for the latest PowerShell release and updates if a new version is available" -Category "System"
 function Update-PowerShell {
@@ -164,28 +214,64 @@ function Update-PowerShell {
 
         if ($updateNeeded) {
             Write-Host "Updating PowerShell..." -ForegroundColor Yellow
-            winget upgrade "Microsoft.PowerShell" --accept-source-agreements --accept-package-agreements
+            Start-Process powershell.exe -ArgumentList "-NoProfile -Command winget upgrade Microsoft.PowerShell --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow
             Write-Host "PowerShell has been updated. Please restart your shell to reflect changes" -ForegroundColor Magenta
         } else {
             Write-Host "Your PowerShell is up to date." -ForegroundColor Green
         }
     } catch {
-        if ($_.Exception.Response.StatusCode -eq 429) {
-            Write-Host "GitHub API rate limit exceeded. Please try again later." -ForegroundColor Red
-        } else {
-            Write-Error "Failed to update PowerShell. Error: $_"
-        }
+        Write-Error "Failed to update PowerShell. Error: $_"
     }
 }
-Update-PowerShell
+
+# skip in debug mode
+# Check if not in debug mode AND (updateInterval is -1 OR file doesn't exist OR time difference is greater than the update interval)
+if (-not $debug -and `
+    ($updateInterval -eq -1 -or `
+     -not (Test-Path $timeFilePath) -or `
+     ((Get-Date).Date - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null).Date).TotalDays -gt $updateInterval)) {
+
+    Update-PowerShell
+    $currentTime = Get-Date -Format 'yyyy-MM-dd'
+    $currentTime | Out-File -FilePath $timeFilePath
+} elseif (-not $debug) {
+    Write-Warning "PowerShell update skipped. Last update check was within the last $updateInterval day(s)."
+} else {
+    Write-Warning "Skipping PowerShell update in debug mode"
+}
+
+function Clear-Cache {
+    # add clear cache logic here
+    Write-Host "Clearing cache..." -ForegroundColor Cyan
+
+    # Clear Windows Prefetch
+    Write-Host "Clearing Windows Prefetch..." -ForegroundColor Yellow
+    Remove-Item -Path "$env:SystemRoot\Prefetch\*" -Force -ErrorAction SilentlyContinue
+
+    # Clear Windows Temp
+    Write-Host "Clearing Windows Temp..." -ForegroundColor Yellow
+    Remove-Item -Path "$env:SystemRoot\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    # Clear User Temp
+    Write-Host "Clearing User Temp..." -ForegroundColor Yellow
+    Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    # Clear Internet Explorer Cache
+    Write-Host "Clearing Internet Explorer Cache..." -ForegroundColor Yellow
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\INetCache\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    Write-Host "Cache clearing completed." -ForegroundColor Green
+}
 
 Add-Command-Description -CommandName "Edit-Profile" -Description "Opens the current user's profile for editing using the configured editor" -Category "System"
 function Edit-Profile {
-    nvim $PROFILE.CurrentUserAllHosts
+    vim $PROFILE.CurrentUserAllHosts
 }
+Add-Command-Description -CommandName "ep" -Description "Opens the profile for editing" -Category "Navigation Shortcuts"
+Set-Alias -Name ep -Value Edit-Profile
 
 Add-Command-Description -CommandName "Reload-Profile" -Description "Reloads the current user's PowerShell profile" -Category "System"
-function Reload-Profile {    
+function Reload-Profile {
     & $profile
 }
 
@@ -226,7 +312,7 @@ function global:Configure-AI {
     $provider = Read-Host "Enter AI Provider"
     $apiKey = Read-Host "Enter OpenAI API Key"
     $model = Read-Host "Enter OpenAI Model"
-    
+
     [System.Environment]::SetEnvironmentVariable('AI_PROVIDER', $provider, [System.EnvironmentVariableTarget]::Machine)
     [System.Environment]::SetEnvironmentVariable('OPENAI_API_KEY', $apiKey, [System.EnvironmentVariableTarget]::Machine)
     [System.Environment]::SetEnvironmentVariable('OPENAI_MODEL ', $model, [System.EnvironmentVariableTarget]::Machine)
@@ -256,7 +342,7 @@ function global:Ask-ChatGpt {
 #region Network Utilities
 
 Add-Command-Description -CommandName "Get-PubIP" -Description "Retrieves the public IP address of the machine" -Category "Network Utilities"
-function Get-PubIP {    
+function Get-PubIP {
     (Invoke-WebRequest https://ipv4.icanhazip.com).Content.Trim()
 }
 
@@ -265,7 +351,12 @@ function Get-PubIP {
 # Open WinUtil
 Add-Command-Description -CommandName "winutil" -Description "Runs the WinUtil script from Chris Titus Tech" -Category "System Utilities"
 function winutil {
-	Invoke-WebRequest -useb https://christitus.com/win | Invoke-Expression
+	irm https://christitus.com/win | iex
+}
+
+# Open WinUtil pre-release
+function winutildev {
+	irm https://christitus.com/windev | iex
 }
 
 # System Utilities
@@ -274,9 +365,9 @@ function admin {
     [CmdletBinding()]
     [Alias("su")]
     param ()
-    
+
     if ($args.Count -gt 0) {
-        $argList = "& '$args'"
+        $argList = $args -join ' '
         Start-Process wt -Verb runAs -ArgumentList "pwsh.exe -NoExit -Command $argList"
     } else {
         Start-Process wt -Verb runAs
@@ -285,10 +376,56 @@ function admin {
 
 Add-Command-Description -CommandName "uptime" -Description "Displays the system uptime" -Category "System Utilities"
 function uptime {
-    if ($PSVersionTable.PSVersion.Major -eq 5) {
-        Get-WmiObject win32_operatingsystem | Select-Object @{Name='LastBootUpTime'; Expression={$_.ConverttoDateTime($_.lastbootuptime)}} | Format-Table -HideTableHeaders
-    } else {
-        net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
+    try {
+        # check powershell version
+        if ($PSVersionTable.PSVersion.Major -eq 5) {
+            $lastBoot = (Get-WmiObject win32_operatingsystem).LastBootUpTime
+            $bootTime = [System.Management.ManagementDateTimeConverter]::ToDateTime($lastBoot)
+        } else {
+            $lastBootStr = net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
+            # check date format
+            if ($lastBootStr -match '^\d{2}/\d{2}/\d{4}') {
+                $dateFormat = 'dd/MM/yyyy'
+            } elseif ($lastBootStr -match '^\d{2}-\d{2}-\d{4}') {
+                $dateFormat = 'dd-MM-yyyy'
+            } elseif ($lastBootStr -match '^\d{4}/\d{2}/\d{2}') {
+                $dateFormat = 'yyyy/MM/dd'
+            } elseif ($lastBootStr -match '^\d{4}-\d{2}-\d{2}') {
+                $dateFormat = 'yyyy-MM-dd'
+            } elseif ($lastBootStr -match '^\d{2}\.\d{2}\.\d{4}') {
+                $dateFormat = 'dd.MM.yyyy'
+            }
+
+            # check time format
+            if ($lastBootStr -match '\bAM\b' -or $lastBootStr -match '\bPM\b') {
+                $timeFormat = 'h:mm:ss tt'
+            } else {
+                $timeFormat = 'HH:mm:ss'
+            }
+
+            $bootTime = [System.DateTime]::ParseExact($lastBootStr, "$dateFormat $timeFormat", [System.Globalization.CultureInfo]::InvariantCulture)
+        }
+
+        # Format the start time
+        ### $formattedBootTime = $bootTime.ToString("dddd, MMMM dd, yyyy HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture)
+        $formattedBootTime = $bootTime.ToString("dddd, MMMM dd, yyyy HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture) + " [$lastBootStr]"
+        Write-Host "System started on: $formattedBootTime" -ForegroundColor DarkGray
+
+        # calculate uptime
+        $uptime = (Get-Date) - $bootTime
+
+        # Uptime in days, hours, minutes, and seconds
+        $days = $uptime.Days
+        $hours = $uptime.Hours
+        $minutes = $uptime.Minutes
+        $seconds = $uptime.Seconds
+
+        # Uptime output
+        Write-Host ("Uptime: {0} days, {1} hours, {2} minutes, {3} seconds" -f $days, $hours, $minutes, $seconds) -ForegroundColor Blue
+
+
+    } catch {
+        Write-Error "An error occurred while retrieving system uptime."
     }
 }
 
@@ -305,21 +442,22 @@ function hb {
         Write-Error "No file path specified."
         return
     }
-    
+
     $FilePath = $args[0]
-    
+
     if (Test-Path $FilePath) {
         $Content = Get-Content $FilePath -Raw
     } else {
         Write-Error "File path does not exist."
         return
     }
-    
+
     $uri = "https://hastebin.de/documents"
     try {
         $response = Invoke-RestMethod -Uri $uri -Method Post -Body $Content -ErrorAction Stop
         $hasteKey = $response.key
         $url = "https://hastebin.de/$hasteKey"
+	    Set-Clipboard $url
         Write-Output $url
     } catch {
         Write-Error "Failed to upload the document. Error: $_"
@@ -385,17 +523,45 @@ function nf { param($name) New-Item -ItemType "file" -Path . -Name $name }
 Add-Command-Description -CommandName "mkcd" -Description "Creates and changes to a new directory" -Category "Directory Management"
 function mkcd { param($dir) mkdir $dir -Force; Set-Location $dir }
 
+function trash($path) {
+    $fullPath = (Resolve-Path -Path $path).Path
+
+    if (Test-Path $fullPath) {
+        $item = Get-Item $fullPath
+
+        if ($item.PSIsContainer) {
+          # Handle directory
+            $parentPath = $item.Parent.FullName
+        } else {
+            # Handle file
+            $parentPath = $item.DirectoryName
+        }
+
+        $shell = New-Object -ComObject 'Shell.Application'
+        $shellItem = $shell.NameSpace($parentPath).ParseName($item.Name)
+
+        if ($item) {
+            $shellItem.InvokeVerb('delete')
+            Write-Host "Item '$fullPath' has been moved to the Recycle Bin."
+        } else {
+            Write-Host "Error: Could not find the item '$fullPath' to trash."
+        }
+    } else {
+        Write-Host "Error: Item '$fullPath' does not exist."
+    }
+}
+
 #region Quality of Life Aliases
 # Navigation Shortcuts
 Add-Command-Description -CommandName "docs" -Description "Changes the current directory to the user's Documents folder" -Category "Navigation Shortcuts"
-function docs { Set-Location -Path $HOME\Documents }
+function docs { $docs = if(([Environment]::GetFolderPath("MyDocuments"))) {([Environment]::GetFolderPath("MyDocuments"))} else {$HOME + "\Documents"}
+    Set-Location -Path $docs }
 
 Add-Command-Description -CommandName "dtop" -Description "Changes the current directory to the user's Desktop folder" -Category "Navigation Shortcuts"
-function dtop { Set-Location -Path $HOME\Desktop }
-
-# Quick Access to Editing the Profile
-Add-Command-Description -CommandName "ep" -Description "Opens the profile for editing" -Category "Navigation Shortcuts"
-function ep { nvim $PROFILE }
+function dtop {
+    $dtop = if ([Environment]::GetFolderPath("Desktop")) {[Environment]::GetFolderPath("Desktop")} else {$HOME + "\Documents"}
+    Set-Location -Path $dtop
+}
 
 # Simplified Process Management
 Add-Command-Description -CommandName "k9" -Description "Kills a process by name" -Category "Simplified Process Management"
@@ -520,7 +686,7 @@ function Switch-Azure-Subscription {
     [CmdletBinding()]
     [Alias("sas")]
     param ()
-    
+
     # Fetch the list of Azure subscriptions
     $AZ_SUBSCRIPTIONS = az account list --output json | ConvertFrom-Json
     if ($AZ_SUBSCRIPTIONS.Count -eq 0) {
@@ -545,7 +711,7 @@ function Login-ACR {
     [CmdletBinding()]
     [Alias("lacr")]
     param ()
-    
+
     # Retrieve the list of Azure Container Registries
     $ACRs = az acr list --output json | ConvertFrom-Json
 
@@ -573,7 +739,7 @@ function Get-FileSize {
     param(
         [string]$Path
     )
-    
+
     $file = Get-Item -Path $Path
     $sizeInBytes = $file.Length
 
@@ -599,7 +765,7 @@ function Share-File {
         [Parameter(Mandatory=$true)]
         [string[]]$Paths
     )
-    
+
     # Base URLs
     $baseApiUrl = "https://share.hidrive.com/api"
 
@@ -640,7 +806,7 @@ function Share-File {
 
     # Collect the shareable link
     $share = "https://get.hidrive.com/$($credentials.id)"
-    
+
     $share | clip
     Write-Output $share
 }
@@ -706,7 +872,7 @@ $Global:ProjectPaths = @(
 )
 # Class to support auto-completion of project folders from multiple paths
 Class MyProjects : System.Management.Automation.IValidateSetValuesGenerator {
-    [string[]] GetValidValues() {        
+    [string[]] GetValidValues() {
         # Collect project names from all specified paths
         $ProjectNames = foreach ($ProjectPath in $Global:ProjectPaths) {
             if (Test-Path $ProjectPath) {
@@ -750,7 +916,7 @@ function Create-Network-Access-Exceptions-For-Resources {
     [CmdletBinding()]
     [Alias("cna")]
     param()
-    
+
     Invoke-WebRequest -UseBasicParsing https://gist.githubusercontent.com/moeller-projects/edef0e5eb63797f7fab3c79c0a30809b/raw/106b33a431f36ab905054c3acc5d1787f8dc7b5e/add-network-exception-for-resources.ps1 | Invoke-Expression
 }
 
@@ -760,39 +926,85 @@ if (Test-CommandExists fnm) {
     fnm env --use-on-cd --shell power-shell | Out-String | Invoke-Expression
 }
 
-if (Test-CommandExists fnm) {
+if (Test-CommandExists volta) {
 	volta completions powershell | Out-String | Invoke-Expression
 }
 
 #endregion
 
-# Customize syntax highlighting
-Set-PSReadLineOption -Colors @{
-    Command = "Cyan"
-    Keyword = "Green"
-    String = "Magenta"
-    Operator = "Yellow"
-    Variable = "White"
-    Comment = "DarkGray"
+# Enhanced PowerShell Experience
+# Enhanced PSReadLine Configuration
+$PSReadLineOptions = @{
+    EditMode = 'Windows'
+    HistoryNoDuplicates = $true
+    HistorySearchCursorMovesToEnd = $true
+    Colors = @{
+        Command = '#87CEEB'  # SkyBlue (pastel)
+        Parameter = '#98FB98'  # PaleGreen (pastel)
+        Operator = '#FFB6C1'  # LightPink (pastel)
+        Variable = '#DDA0DD'  # Plum (pastel)
+        String = '#FFDAB9'  # PeachPuff (pastel)
+        Number = '#B0E0E6'  # PowderBlue (pastel)
+        Type = '#F0E68C'  # Khaki (pastel)
+        Comment = '#D3D3D3'  # LightGray (pastel)
+        Keyword = '#8367c7'  # Violet (pastel)
+        Error = '#FF6347'  # Tomato (keeping it close to red for visibility)
+    }
+    PredictionSource = 'History'
+    PredictionViewStyle = 'ListView'
+    BellStyle = 'None'
 }
+Set-PSReadLineOption @PSReadLineOptions
 
-# Increase history size
-Set-PSReadLineOption -MaximumHistoryCount 4096
-# Enable predictive IntelliSense
-Set-PSReadLineOption -PredictionSource History
-# Case insensitive history search with cursor at the end
-Set-PSReadLineOption -HistorySearchCursorMovesToEnd
-# Disable bell
-Set-PSReadLineOption -BellStyle None
-# Set custom key bindings
+# Custom key handlers
+Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
+Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+Set-PSReadLineKeyHandler -Chord 'Ctrl+d' -Function DeleteChar
+Set-PSReadLineKeyHandler -Chord 'Ctrl+w' -Function BackwardDeleteWord
+Set-PSReadLineKeyHandler -Chord 'Alt+d' -Function DeleteWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+LeftArrow' -Function BackwardWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+RightArrow' -Function ForwardWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+z' -Function Undo
+Set-PSReadLineKeyHandler -Chord 'Ctrl+y' -Function Redo
 Set-PSReadLineKeyHandler -Key Ctrl+l -Function ClearScreen
 Set-PSReadLineKeyHandler -Chord Enter -Function ValidateAndAcceptLine
 Set-PSReadLineKeyHandler -Chord Ctrl+Enter -Function AcceptSuggestion
 Set-PSReadLineKeyHandler -Chord Alt+v -Function SwitchPredictionView
-Set-PSReadlineKeyHandler -Key Tab -Function MenuComplete
 
+# Custom functions for PSReadLine
+Set-PSReadLineOption -AddToHistoryHandler {
+    param($line)
+    $sensitive = @('password', 'secret', 'token', 'apikey', 'connectionstring')
+    $hasSensitive = $sensitive | Where-Object { $line -match $_ }
+    return ($null -eq $hasSensitive)
+}
+
+# Improved prediction settings
+Set-PSReadLineOption -PredictionSource HistoryAndPlugin
+Set-PSReadLineOption -MaximumHistoryCount 10000
+# Case insensitive history search with cursor at the end
+Set-PSReadLineOption -HistorySearchCursorMovesToEnd
 # Save command history to file
 Set-PSReadLineOption -HistorySavePath "$env:APPDATA\PSReadLine\CommandHistory.txt"
+
+# Custom completion for common commands
+$scriptblock = {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $customCompletions = @{
+        'git' = @('status', 'add', 'commit', 'push', 'pull', 'clone', 'checkout')
+        'npm' = @('install', 'start', 'run', 'test', 'build')
+        'deno' = @('run', 'compile', 'bundle', 'test', 'lint', 'fmt', 'cache', 'info', 'doc', 'upgrade')
+    }
+
+    $command = $commandAst.CommandElements[0].Value
+    if ($customCompletions.ContainsKey($command)) {
+        $customCompletions[$command] | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+    }
+}
+Register-ArgumentCompleter -Native -CommandName git, npm, deno -ScriptBlock $scriptblock
 
 $scriptblock = {
     param($wordToComplete, $commandAst, $cursorPosition)
@@ -830,6 +1042,7 @@ function Get-Theme {
             Invoke-Expression $existingTheme
             return
         }
+        oh-my-posh init pwsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/cobalt2.omp.json | Invoke-Expression
     } else {
         oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/json.omp.json" | Invoke-Expression
     }
@@ -853,10 +1066,6 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
 Set-Alias -Name z -Value __zoxide_z -Option AllScope -Scope Global -Force
 Set-Alias -Name zi -Value __zoxide_zi -Option AllScope -Scope Global -Force
 
-# Set-PSReadLineOption -PredictionSource History
-# Set-PSReadLineOption -PredictionViewStyle ListView
-# Set-PSReadLineOption -EditMode Windows
-
 Invoke-Expression (&starship init powershell)
 (& pixi completion --shell powershell) | Out-String | Invoke-Expression
 
@@ -865,23 +1074,23 @@ function global:Show-Help {
     $groupedByCategory = @{}
 
     foreach ($commandDescription in $commandDescriptions) {
-            $category = $commandDescription.Category
-            $description = $commandDescription.Description
-            $functionName = $commandDescription.CommandName
+        $category = $commandDescription.Category
+        $description = $commandDescription.Description
+        $functionName = $commandDescription.CommandName
 
-            $aliasList = $commandDescription.aliases -join ", "
-            if (-not $aliasList) {
-                $aliasList = " "
-            }
-            if (-not $groupedByCategory.ContainsKey($category)) {
-                $groupedByCategory[$category] = @()
-            }
+        $aliasList = $commandDescription.aliases -join ", "
+        if (-not $aliasList) {
+            $aliasList = " "
+        }
+        if (-not $groupedByCategory.ContainsKey($category)) {
+            $groupedByCategory[$category] = @()
+        }
 
-            $groupedByCategory[$category] += [pscustomobject]@{
-                Name        = $functionName
-                Description = $description
-                Aliases     = $aliasList
-            }
+        $groupedByCategory[$category] += [pscustomobject]@{
+            Name        = $functionName
+            Description = $description
+            Aliases     = $aliasList
+        }
     }
 
     # Now print the functions, grouped by category
@@ -891,4 +1100,9 @@ function global:Show-Help {
         Write-Information ""
     }
 }
-Write-Information "Use 'Show-Help' to display help"
+
+if (Test-Path "$PSScriptRoot\Custom.ps1") {
+    Invoke-Expression -Command "& `"$PSScriptRoot\Custom.ps1`""
+}
+
+Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSStyle.Reset)"
