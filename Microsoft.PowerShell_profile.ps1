@@ -15,6 +15,8 @@ if (-not (Test-Path -Path $directoryPath)) {
 # Check if the file exists; if not, create it
 if (-not (Test-Path -Path $timeFilePath)) {
     New-Item -ItemType File -Path $timeFilePath -Force | Out-Null
+    $currentTime = Get-Date -Format 'yyyy-MM-dd'
+    $currentTime | Out-File -FilePath $timeFilePath
 }
 
 # Define the update interval in days, set to -1 to always check
