@@ -587,30 +587,6 @@ Add-Command-Description -CommandName "ll" -Description "Lists all files, includi
 function ll { Get-ChildItem -Path . -Force -Hidden | Format-Table -AutoSize }
 
 # Git Shortcuts
-Add-Command-Description -CommandName "gs" -Description "Shortcut for 'git status'" -Category "Git Shortcuts"
-function gs { git status }
-
-Add-Command-Description -CommandName "ga" -Description "Shortcut for 'git add .'" -Category "Git Shortcuts"
-function ga { git add . }
-
-Add-Command-Description -CommandName "gc" -Description "Shortcut for 'git commit -m'" -Category "Git Shortcuts"
-function gc { param($m) git commit -m "$m" }
-
-Add-Command-Description -CommandName "gp" -Description "Shortcut for 'git push'" -Category "Git Shortcuts"
-function gp { git push }
-
-Add-Command-Description -CommandName "g" -Description "Changes to the GitHub directory" -Category "Git Shortcuts"
-function g { __zoxide_z github }
-
-Add-Command-Description -CommandName "gcl" -Description "Clones a git repository" -Category "Git Shortcuts"
-function gcl { git clone "$args" }
-
-Add-Command-Description -CommandName "gcom" -Description "Adds all changes and commits with the specified message" -Category "Git Shortcuts"
-function gcom {
-    git add .
-    git commit -m "$args"
-}
-
 Add-Command-Description -CommandName "gclean" -Description "Deletes merged local branches, excluding main, master, dev, develop, and the current branch" -Category "Git Shortcuts"
 function gclean {
     git branch --merged | ForEach-Object { $_.Trim() } | Where-Object { $_ -notmatch '^\*' -and $_ -notmatch '^main$|^master$|^dev$|^develop$' } | ForEach-Object { git branch -d $_ }
@@ -655,13 +631,6 @@ function global:Git-Go {
       Write-Host "No branch selected. Exiting..." -ForegroundColor Yellow
     }
   }
-}
-
-Add-Command-Description -CommandName "lazyg" -Description "Adds all changes, commits with the specified message, and pushes to the remote repository" -Category "Git Shortcuts"
-function lazyg {
-    git add .
-    git commit -m "$args"
-    git push
 }
 
 Add-Command-Description -CommandName "lzg" -Description "Runs lazygit" -Category "Terminal Apps"
