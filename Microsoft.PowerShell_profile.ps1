@@ -4,20 +4,7 @@
 $debug = $false
 
 # Define the path to the file that stores the last execution time
-$timeFilePath = "$env:USERPROFILE\Documents\PowerShell\LastExecutionTime.txt"
-
-# Check if the directory exists; if not, create it
-$directoryPath = [System.IO.Path]::GetDirectoryName($timeFilePath)
-if (-not (Test-Path -Path $directoryPath)) {
-    New-Item -ItemType Directory -Path $directoryPath | Out-Null
-}
-
-# Check if the file exists; if not, create it
-if (-not (Test-Path -Path $timeFilePath)) {
-    New-Item -ItemType File -Path $timeFilePath -Force | Out-Null
-    $currentTime = Get-Date -Format 'yyyy-MM-dd'
-    $currentTime | Out-File -FilePath $timeFilePath
-}
+$timeFilePath = [Environment]::GetFolderPath("MyDocuments") + "\PowerShell\LastExecutionTime.txt"
 
 # Define the update interval in days, set to -1 to always check
 $updateInterval = 7
@@ -201,9 +188,7 @@ if (-not $debug -and `
     $currentTime = Get-Date -Format 'yyyy-MM-dd'
     $currentTime | Out-File -FilePath $timeFilePath
 
-} elseif (-not $debug) {
-    Write-Warning "Profile update skipped. Last update check was within the last $updateInterval day(s)."
-} else {
+} elseif ($debug) {
     Write-Warning "Skipping profile update check in debug mode"
 }
 
@@ -247,9 +232,7 @@ if (-not $debug -and `
     Update-PowerShell
     $currentTime = Get-Date -Format 'yyyy-MM-dd'
     $currentTime | Out-File -FilePath $timeFilePath
-} elseif (-not $debug) {
-    Write-Warning "PowerShell update skipped. Last update check was within the last $updateInterval day(s)."
-} else {
+} elseif ($debug) {
     Write-Warning "Skipping PowerShell update in debug mode"
 }
 
@@ -390,38 +373,24 @@ function admin {
 Add-Command-Description -CommandName "uptime" -Description "Displays the system uptime" -Category "System Utilities"
 function uptime {
     try {
+        # find date/time format
+        $dateFormat = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern
+        $timeFormat = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.LongTimePattern
+
         # check powershell version
         if ($PSVersionTable.PSVersion.Major -eq 5) {
             $lastBoot = (Get-WmiObject win32_operatingsystem).LastBootUpTime
             $bootTime = [System.Management.ManagementDateTimeConverter]::ToDateTime($lastBoot)
+
+            # reformat lastBoot
+            $lastBoot = $bootTime.ToString("$dateFormat $timeFormat")
         } else {
-            $lastBootStr = net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
-            # check date format
-            if ($lastBootStr -match '^\d{2}/\d{2}/\d{4}') {
-                $dateFormat = 'dd/MM/yyyy'
-            } elseif ($lastBootStr -match '^\d{2}-\d{2}-\d{4}') {
-                $dateFormat = 'dd-MM-yyyy'
-            } elseif ($lastBootStr -match '^\d{4}/\d{2}/\d{2}') {
-                $dateFormat = 'yyyy/MM/dd'
-            } elseif ($lastBootStr -match '^\d{4}-\d{2}-\d{2}') {
-                $dateFormat = 'yyyy-MM-dd'
-            } elseif ($lastBootStr -match '^\d{2}\.\d{2}\.\d{4}') {
-                $dateFormat = 'dd.MM.yyyy'
-            }
-
-            # check time format
-            if ($lastBootStr -match '\bAM\b' -or $lastBootStr -match '\bPM\b') {
-                $timeFormat = 'h:mm:ss tt'
-            } else {
-                $timeFormat = 'HH:mm:ss'
-            }
-
-            $bootTime = [System.DateTime]::ParseExact($lastBootStr, "$dateFormat $timeFormat", [System.Globalization.CultureInfo]::InvariantCulture)
+            $lastBoot = net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
+            $bootTime = [System.DateTime]::ParseExact($lastBoot, "$dateFormat $timeFormat", [System.Globalization.CultureInfo]::InvariantCulture)
         }
 
         # Format the start time
-        ### $formattedBootTime = $bootTime.ToString("dddd, MMMM dd, yyyy HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture)
-        $formattedBootTime = $bootTime.ToString("dddd, MMMM dd, yyyy HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture) + " [$lastBootStr]"
+        $formattedBootTime = $bootTime.ToString("dddd, MMMM dd, yyyy HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture) + " [$lastBoot]"
         Write-Host "System started on: $formattedBootTime" -ForegroundColor DarkGray
 
         # calculate uptime
@@ -582,9 +551,9 @@ function k9 { Stop-Process -Name $args[0] }
 
 # Enhanced Listing
 Add-Command-Description -CommandName "la" -Description "Lists all files in the current directory with detailed formatting" -Category "Enhanced Listing"
-function la { Get-ChildItem -Path . -Force | Format-Table -AutoSize }
+function la { Get-ChildItem | Format-Table -AutoSize }
 Add-Command-Description -CommandName "ll" -Description "Lists all files, including hidden, in the current directory with detailed formatting" -Category "Enhanced Listing"
-function ll { Get-ChildItem -Path . -Force -Hidden | Format-Table -AutoSize }
+function ll { Get-ChildItem -Force | Format-Table -AutoSize }
 
 # Git Shortcuts
 Add-Command-Description -CommandName "gs" -Description "Shortcut for 'git status'" -Category "Git Shortcuts"
