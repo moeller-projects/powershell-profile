@@ -168,12 +168,15 @@ function Update-Profile {
         if ($newhash.Hash -ne $oldhash.Hash) {
             Copy-Item -Path "$env:temp/Microsoft.PowerShell_profile.ps1" -Destination $PROFILE -Force
             Write-Host "Profile has been updated. Please restart your shell to reflect changes" -ForegroundColor Magenta
-        } else {
+        }
+        else {
             Write-Host "Profile is up to date." -ForegroundColor Green
         }
-    } catch {
+    }
+    catch {
         Write-Error "Unable to check for `$profile updates: $_"
-    } finally {
+    }
+    finally {
         Remove-Item "$env:temp/Microsoft.PowerShell_profile.ps1" -ErrorAction SilentlyContinue
     }
 }
@@ -181,14 +184,15 @@ function Update-Profile {
 # Check if not in debug mode AND (updateInterval is -1 OR file doesn't exist OR time difference is greater than the update interval)
 if (-not $debug -and `
     ($updateInterval -eq -1 -or `
-      -not (Test-Path $timeFilePath) -or `
-      ((Get-Date) - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null)).TotalDays -gt $updateInterval)) {
+            -not (Test-Path $timeFilePath) -or `
+        ((Get-Date) - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null)).TotalDays -gt $updateInterval)) {
 
     Update-Profile
     $currentTime = Get-Date -Format 'yyyy-MM-dd'
     $currentTime | Out-File -FilePath $timeFilePath
 
-} elseif ($debug) {
+}
+elseif ($debug) {
     Write-Warning "Skipping profile update check in debug mode"
 }
 
@@ -214,10 +218,12 @@ function Update-PowerShell {
             Write-Host "Updating PowerShell..." -ForegroundColor Yellow
             Start-Process powershell.exe -ArgumentList "-NoProfile -Command winget upgrade Microsoft.PowerShell --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow
             Write-Host "PowerShell has been updated. Please restart your shell to reflect changes" -ForegroundColor Magenta
-        } else {
+        }
+        else {
             Write-Host "Your PowerShell is up to date." -ForegroundColor Green
         }
-    } catch {
+    }
+    catch {
         Write-Error "Failed to update PowerShell. Error: $_"
     }
 }
@@ -226,13 +232,14 @@ function Update-PowerShell {
 # Check if not in debug mode AND (updateInterval is -1 OR file doesn't exist OR time difference is greater than the update interval)
 if (-not $debug -and `
     ($updateInterval -eq -1 -or `
-     -not (Test-Path $timeFilePath) -or `
-     ((Get-Date).Date - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null).Date).TotalDays -gt $updateInterval)) {
+            -not (Test-Path $timeFilePath) -or `
+        ((Get-Date).Date - [datetime]::ParseExact((Get-Content -Path $timeFilePath), 'yyyy-MM-dd', $null).Date).TotalDays -gt $updateInterval)) {
 
     Update-PowerShell
     $currentTime = Get-Date -Format 'yyyy-MM-dd'
     $currentTime | Out-File -FilePath $timeFilePath
-} elseif ($debug) {
+}
+elseif ($debug) {
     Write-Warning "Skipping PowerShell update in debug mode"
 }
 
@@ -270,20 +277,6 @@ Add-Command-Description -CommandName "Reload-Profile" -Description "Reloads the 
 function Reload-Profile {
     & $profile
 }
-
-Add-Command-Description -CommandName "Get-RecentHistory" -Description "Gets recent PowerShell history" -Category "Development"
-function Get-RecentHistory {
-    [CmdletBinding()]
-    param (
-        [Int32]$Last
-    )
-
-    $historyEntries = $(Get-Content $(Get-PSReadLineOption).HistorySavePath | Select-Object -Last $Last) -join "`n"
-    Write-Output $historyEntries
-    $historyEntries | clip
-    Write-Information "Copied to Clipboard"
-}
-
 #endregion
 
 #region File Management
@@ -302,57 +295,15 @@ function ff($name) {
 
 #endregion
 
-#region AI
-Add-Command-Description -CommandName "Configure-AI" -Description "Configure the AI-Feature" -Category "AI"
-function global:Configure-AI {
-    $provider = Read-Host "Enter AI Provider"
-    $apiKey = Read-Host "Enter OpenAI API Key"
-    $model = Read-Host "Enter OpenAI Model"
-
-    [System.Environment]::SetEnvironmentVariable('AI_PROVIDER', $provider, [System.EnvironmentVariableTarget]::Machine)
-    [System.Environment]::SetEnvironmentVariable('OPENAI_API_KEY', $apiKey, [System.EnvironmentVariableTarget]::Machine)
-    [System.Environment]::SetEnvironmentVariable('OPENAI_MODEL ', $model, [System.EnvironmentVariableTarget]::Machine)
-}
-
-Add-Command-Description -CommandName "Ask-ChatGpt" -Description "Ask ChatGpt a Question" -Category "AI" -Aliases @("ask")
-function global:Ask-ChatGpt {
-    [CmdletBinding()]
-    [Alias("ask")]
-    param (
-        [string[]]$Args,
-        [switch]$UseShell
-    )
-
-    if (-not $env:OPENAI_API_KEY) {
-        Write-Error "Error: The OPENAI_API_KEY environment variable is not set."
-        return
-    }
-
-    $argsString = $Args -join ' '
-    $shellOption = if ($UseShell) { '-s' } else { '' }
-    $command = "tgpt $shellOption `"$argsString`""
-    Invoke-Expression $command
-}
-#endregion
-
-#region Network Utilities
-
-Add-Command-Description -CommandName "Get-PubIP" -Description "Retrieves the public IP address of the machine" -Category "Network Utilities"
-function Get-PubIP {
-    (Invoke-WebRequest https://ipv4.icanhazip.com).Content.Trim()
-}
-
-#endregion
-
 # Open WinUtil
 Add-Command-Description -CommandName "winutil" -Description "Runs the WinUtil script from Chris Titus Tech" -Category "System Utilities"
 function winutil {
-	irm https://christitus.com/win | iex
+    irm https://christitus.com/win | iex
 }
 
 # Open WinUtil pre-release
 function winutildev {
-	irm https://christitus.com/windev | iex
+    irm https://christitus.com/windev | iex
 }
 
 # System Utilities
@@ -365,7 +316,8 @@ function admin {
     if ($args.Count -gt 0) {
         $argList = $args -join ' '
         Start-Process wt -Verb runAs -ArgumentList "pwsh.exe -NoExit -Command $argList"
-    } else {
+    }
+    else {
         Start-Process wt -Verb runAs
     }
 }
@@ -384,7 +336,8 @@ function uptime {
 
             # reformat lastBoot
             $lastBoot = $bootTime.ToString("$dateFormat $timeFormat")
-        } else {
+        }
+        else {
             $lastBoot = net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
             $bootTime = [System.DateTime]::ParseExact($lastBoot, "$dateFormat $timeFormat", [System.Globalization.CultureInfo]::InvariantCulture)
         }
@@ -406,7 +359,8 @@ function uptime {
         Write-Host ("Uptime: {0} days, {1} hours, {2} minutes, {3} seconds" -f $days, $hours, $minutes, $seconds) -ForegroundColor Blue
 
 
-    } catch {
+    }
+    catch {
         Write-Error "An error occurred while retrieving system uptime."
     }
 }
@@ -429,7 +383,8 @@ function hb {
 
     if (Test-Path $FilePath) {
         $Content = Get-Content $FilePath -Raw
-    } else {
+    }
+    else {
         Write-Error "File path does not exist."
         return
     }
@@ -439,9 +394,10 @@ function hb {
         $response = Invoke-RestMethod -Uri $uri -Method Post -Body $Content -ErrorAction Stop
         $hasteKey = $response.key
         $url = "https://hastebin.de/$hasteKey"
-	    Set-Clipboard $url
+        Set-Clipboard $url
         Write-Output $url
-    } catch {
+    }
+    catch {
         Write-Error "Failed to upload the document. Error: $_"
     }
 }
@@ -487,14 +443,14 @@ function pgrep($name) {
 
 Add-Command-Description -CommandName "head" -Description "Displays the first n lines of a file" -Category "File Management"
 function head {
-  param($Path, $n = 10)
-  Get-Content $Path -Head $n
+    param($Path, $n = 10)
+    Get-Content $Path -Head $n
 }
 
 Add-Command-Description -CommandName "tail" -Description "Displays the last n lines of a file" -Category "File Management"
 function tail {
-  param($Path, $n = 10, [switch]$f = $false)
-  Get-Content $Path -Tail $n -Wait:$f
+    param($Path, $n = 10, [switch]$f = $false)
+    Get-Content $Path -Tail $n -Wait:$f
 }
 
 # Quick File Creation
@@ -512,9 +468,10 @@ function trash($path) {
         $item = Get-Item $fullPath
 
         if ($item.PSIsContainer) {
-          # Handle directory
+            # Handle directory
             $parentPath = $item.Parent.FullName
-        } else {
+        }
+        else {
             # Handle file
             $parentPath = $item.DirectoryName
         }
@@ -525,10 +482,12 @@ function trash($path) {
         if ($item) {
             $shellItem.InvokeVerb('delete')
             Write-Host "Item '$fullPath' has been moved to the Recycle Bin."
-        } else {
+        }
+        else {
             Write-Host "Error: Could not find the item '$fullPath' to trash."
         }
-    } else {
+    }
+    else {
         Write-Host "Error: Item '$fullPath' does not exist."
     }
 }
@@ -536,12 +495,14 @@ function trash($path) {
 #region Quality of Life Aliases
 # Navigation Shortcuts
 Add-Command-Description -CommandName "docs" -Description "Changes the current directory to the user's Documents folder" -Category "Navigation Shortcuts"
-function docs { $docs = if(([Environment]::GetFolderPath("MyDocuments"))) {([Environment]::GetFolderPath("MyDocuments"))} else {$HOME + "\Documents"}
-    Set-Location -Path $docs }
+function docs {
+    $docs = if (([Environment]::GetFolderPath("MyDocuments"))) { ([Environment]::GetFolderPath("MyDocuments")) } else { $HOME + "\Documents" }
+    Set-Location -Path $docs
+}
 
 Add-Command-Description -CommandName "dtop" -Description "Changes the current directory to the user's Desktop folder" -Category "Navigation Shortcuts"
 function dtop {
-    $dtop = if ([Environment]::GetFolderPath("Desktop")) {[Environment]::GetFolderPath("Desktop")} else {$HOME + "\Documents"}
+    $dtop = if ([Environment]::GetFolderPath("Desktop")) { [Environment]::GetFolderPath("Desktop") } else { $HOME + "\Documents" }
     Set-Location -Path $dtop
 }
 
@@ -554,53 +515,6 @@ Add-Command-Description -CommandName "la" -Description "Lists all files in the c
 function la { Get-ChildItem | Format-Table -AutoSize }
 Add-Command-Description -CommandName "ll" -Description "Lists all files, including hidden, in the current directory with detailed formatting" -Category "Enhanced Listing"
 function ll { Get-ChildItem -Force | Format-Table -AutoSize }
-
-# Git Shortcuts
-Add-Command-Description -CommandName "gclean" -Description "Deletes merged local branches, excluding main, master, dev, develop, and the current branch" -Category "Git Shortcuts"
-function gclean {
-    git branch --merged | ForEach-Object { $_.Trim() } | Where-Object { $_ -notmatch '^\*' -and $_ -notmatch '^main$|^master$|^dev$|^develop$' } | ForEach-Object { git branch -d $_ }
-}
-
-Add-Command-Description -CommandName "Git-Go" -Description "Select and checkout a Git branch interactively" -Category "Git Shortcuts" -Aliases @("gg")
-function global:Git-Go {
-  [CmdletBinding()]
-  [Alias('gg')]
-  param (
-    [parameter(Mandatory=$False, Position=0, ValueFromRemainingArguments=$True)]
-    [Object[]] $Arguments
-  )
-
-  begin {
-    # Ensure the script runs inside a Git repository
-    if (-not (Test-Path .git)) {
-        Write-Host "This is not a Git repository!" -ForegroundColor Red
-        return
-    }
-
-    # Fetch latest updates from the remote
-    git fetch --all
-
-    # Get the list of branches and filter the selection
-    $branchCommand = & git branch --all | fzf -q ($Arguments -join ' ') | ForEach-Object { $_ -replace '^\*', '' -replace 'remotes/origin/', '' } | Sort-Object -Unique
-  }
-
-  process {
-    if ($branchCommand) {
-      $selectedBranch = $branchCommand.Trim()
-
-      # Check if it's a remote branch and checkout accordingly
-      if (git branch --list $selectedBranch) {
-        & git checkout $selectedBranch
-      } else {
-        & git checkout -b $selectedBranch origin/$selectedBranch
-      }
-
-      Write-Host "Switched to branch: $selectedBranch" -ForegroundColor Green
-    } else {
-      Write-Host "No branch selected. Exiting..." -ForegroundColor Yellow
-    }
-  }
-}
 
 Add-Command-Description -CommandName "lzg" -Description "Runs lazygit" -Category "Terminal Apps"
 function lzg { lazygit }
@@ -621,8 +535,8 @@ function sysinfo { Get-ComputerInfo }
 # Networking Utilities
 Add-Command-Description -CommandName "flushdns" -Description "Clears the DNS cache" -Category "Networking Utilities"
 function flushdns {
-	Clear-DnsClientCache
-	Write-Information "DNS has been flushed"
+    Clear-DnsClientCache
+    Write-Information "DNS has been flushed"
 }
 
 # Clipboard Utilities
@@ -632,253 +546,12 @@ function cpy { Set-Clipboard $args[0] }
 Add-Command-Description -CommandName "pst" -Description "Retrieves text from the clipboard" -Category "Clipboard Utilities"
 function pst { Get-Clipboard }
 
-Add-Command-Description -CommandName "Switch-Azure-Subscription" -Description "Select and login to Azure Subscription" -Category "Development" -Aliases @("sas")
-function Switch-Azure-Subscription {
-    [CmdletBinding()]
-    [Alias("sas")]
-    param ()
-
-    # Fetch the list of Azure subscriptions
-    $AZ_SUBSCRIPTIONS = az account list --output json | ConvertFrom-Json
-    if ($AZ_SUBSCRIPTIONS.Count -eq 0) {
-        Write-Error "No Azure Subscriptions found."
-        return
-    }
-
-    # Populate the options array
-    $Options = $AZ_SUBSCRIPTIONS | ForEach-Object { New-MenuItem -Name $_.name -Value $_.id }
-
-    # Display the menu and get the selected subscription
-    $selectedAZSub = Show-Menu -MenuItems $Options
-
-    # Set the selected Azure subscription
-    & az account set -s $selectedAZSub.Value
-}
-
-
-# Login to Docker Registry
-Add-Command-Description -CommandName "Login-ACR" -Description "Select and login to Azure Container Registry using Docker" -Category "Development" -Aliases @("lacr")
-function Login-ACR {
-    [CmdletBinding()]
-    [Alias("lacr")]
-    param ()
-
-    # Retrieve the list of Azure Container Registries
-    $ACRs = az acr list --output json | ConvertFrom-Json
-
-    # Check if $ACRs is empty
-    if ($ACRs.Count -eq 0) {
-        Write-Error "No Azure Container Registries found."
-        return
-    }
-
-    # Create menu options from the ACR list
-    $Options = $ACRs | ForEach-Object { New-MenuItem -Name $_.loginServer -Value $_.name }
-
-    # Display the menu and get the selected ACR
-    $selectedACR = Show-Menu -MenuItems $Options
-
-    # Get the credentials for the selected ACR
-    $credentials = az acr credential show --name $selectedACR.Value -o json | ConvertFrom-Json
-
-    # Login to Docker registry using the credentials
-    docker login $selectedACR.Name --username $credentials.username --password $credentials.passwords[0].value
-}
-
-Add-Command-Description -CommandName "Get-FileSize" -Description "Gets the size of a file" -Category "File Management"
-function Get-FileSize {
-    param(
-        [string]$Path
-    )
-
-    $file = Get-Item -Path $Path
-    $sizeInBytes = $file.Length
-
-    $units = @("Bytes", "KB", "MB", "GB", "TB")
-    $unitValues = 1, 1KB, 1MB, 1GB, 1TB
-
-    for ($i = $units.Length - 1; $i -ge 0; $i--) {
-        if ($sizeInBytes -ge $unitValues[$i]) {
-            $size = [math]::round($sizeInBytes / $unitValues[$i], 2)
-            Write-Output "$size $($units[$i])"
-            return
-        }
-    }
-}
-
-# Share File via HiDrive Share
-Add-Command-Description -CommandName "Share-File" -Description "Uploads one or more files to share it using HiDrive" -Category "Share"
-function Share-File {
-    [Info("Upload one or more Files to share it using HiDrive", "Share")]
-    [CmdletBinding()]
-    [Alias("sf")]
-    param (
-        [Parameter(Mandatory=$true)]
-        [string[]]$Paths
-    )
-
-    # Base URLs
-    $baseApiUrl = "https://share.hidrive.com/api"
-
-    # Request credentials for file sharing
-    try {
-        $credentialsResponse = Invoke-WebRequest -Method POST -Uri "$baseApiUrl/new"
-        $credentials = $credentialsResponse.Content | ConvertFrom-Json
-    }
-    catch {
-        Write-Error "Failed to obtain credentials: $_"
-        return
-    }
-
-    foreach ($Path in $Paths) {
-        # Validate file path
-        if (-not (Test-Path -Path $Path)) {
-            Write-Error "The specified path '$Path' does not exist."
-            continue
-        }
-
-        try {
-            # Get the file item
-            $file = Get-Item -Path $Path
-
-            # Upload the file
-            $uploadUri = "$baseApiUrl/$($credentials.id)/patch?dst=$($file.name)&offset=0"
-            $uploadResponse = Invoke-WebRequest -Method POST -Uri $uploadUri -Form @{file = $file} -ContentType "multipart/form-data" -Headers @{"x-auth-token" = $credentials.token}
-            Write-Information "[DONE] $($file.Name) - $(Get-FileSize -Path $Path)"
-        }
-        catch {
-            Write-Error "An error occurred while processing '$Path': $_"
-        }
-    }
-
-    # Finalize the upload
-    $finalizeUri = "$baseApiUrl/$($credentials.id)/finalize"
-    $finalizeResponse = Invoke-WebRequest -Method POST -Uri $finalizeUri -Headers @{"x-auth-token" = $credentials.token}
-
-    # Collect the shareable link
-    $share = "https://get.hidrive.com/$($credentials.id)"
-
-    $share | clip
-    Write-Output $share
-}
-
-Add-Command-Description -CommandName "Watch-File" -Description "Watches a file for changes" -Category "File Management" -Aliases @("wf")
-function Watch-File {
-	param (
-        [string]$Path
-    )
-	Get-Content $Path -Wait -Tail 1
-}
-function wf { Watch-File -Path $args[0] }
-
-Add-Command-Description -CommandName "Select-KubeContext" -Description "Selects a Kubernetes context" -Category "Kubernetes Utilities" -Aliases @("kubectx")
-function global:Select-KubeContext {
-  [CmdletBinding()]
-  [Alias('kubectx')]
-  param (
-    [parameter(Mandatory=$False,Position=0,ValueFromRemainingArguments=$True)]
-    [Object[]] $Arguments
-  )
-  begin {
-    if ($Arguments.Length -gt 0) {
-      $ctx = & kubectl config get-contexts -o=name | fzf -q @Arguments
-    } else {
-      $ctx = & kubectl config get-contexts -o=name | fzf
-    }
-  }
-  process {
-    if ($ctx -ne '') {
-      & kubectl config use-context $ctx
-    }
-  }
-}
-
-Add-Command-Description -CommandName "Select-KubeNamespace" -Description "Selects a Kubernetes namespace" -Category "Kubernetes Utilities" -Aliases @("kubens")
-function global:Select-KubeNamespace {
-  [CmdletBinding()]
-  [Alias('kubens')]
-  param (
-    [parameter(Mandatory=$False,Position=0,ValueFromRemainingArguments=$True)]
-    [Object[]] $Arguments
-  )
-  begin {
-    if ($Arguments.Length -gt 0) {
-      $ns = & kubectl get namespace -o=name | fzf -q @Arguments
-    } else {
-      $ns = & kubectl get namespace -o=name | fzf
-    }
-  }
-  process {
-    if ($ns -ne '') {
-      $ns = $ns -replace '^namespace/'
-      & kubectl config set-context --current --namespace=$ns
-    }
-  }
-}
-
-$Global:ProjectPaths = @(
-	"D:\projects\aveato",
-	"D:\projects\laekkerai",
-	"D:\projects\private"
-)
-# Class to support auto-completion of project folders from multiple paths
-Class MyProjects : System.Management.Automation.IValidateSetValuesGenerator {
-    [string[]] GetValidValues() {
-        # Collect project names from all specified paths
-        $ProjectNames = foreach ($ProjectPath in $Global:ProjectPaths) {
-            if (Test-Path $ProjectPath) {
-                (Get-ChildItem -Path $ProjectPath -Directory).BaseName
-            }
-        }
-
-        # Return distinct project names
-        return [string[]] $ProjectNames | Sort-Object -Unique
-    }
-}
-
-Add-Command-Description -CommandName "Enter-Projects" -Description "Enters a predefined project folder" -Category "Navigation" -Aliases @("project")
-function Enter-Projects {
-    [CmdletBinding()]
-    [Alias("project")]
-    param(
-        # Enable tab completion with projects found in multiple paths
-        [ValidateSet([MyProjects])]
-        [ArgumentCompletions([MyProjects])]
-        [string]
-        $projects
-    )
-
-    # Find the first matching project folder in the specified paths
-    foreach ($ProjectPath in $Global:ProjectPaths) {
-        $FullProjectPath = Join-Path -Path $ProjectPath -ChildPath $projects
-        if (Test-Path $FullProjectPath) {
-            Set-Location -Path $FullProjectPath
-            Get-ChildItem
-            return
-        }
-    }
-
-    # If no match found, throw an error
-    Write-Error "Project '$projects' not found in the specified paths."
-}
-
-Add-Command-Description -CommandName "Create-Network-Access-Exceptions-For-Resources" -Description "Adds Network access exceptions for my current public ip" -Category "Development" -Aliases @("cna")
-function Create-Network-Access-Exceptions-For-Resources {
-    [CmdletBinding()]
-    [Alias("cna")]
-    param()
-
-    Invoke-WebRequest -UseBasicParsing https://gist.githubusercontent.com/moeller-projects/edef0e5eb63797f7fab3c79c0a30809b/raw/106b33a431f36ab905054c3acc5d1787f8dc7b5e/add-network-exception-for-resources.ps1 | Invoke-Expression
-}
-
-#region Setup Command Completions
-
 if (Test-CommandExists fnm) {
     fnm env --use-on-cd --shell power-shell | Out-String | Invoke-Expression
 }
 
 if (Test-CommandExists volta) {
-	volta completions powershell | Out-String | Invoke-Expression
+    volta completions powershell | Out-String | Invoke-Expression
 }
 
 #endregion
@@ -886,24 +559,24 @@ if (Test-CommandExists volta) {
 # Enhanced PowerShell Experience
 # Enhanced PSReadLine Configuration
 $PSReadLineOptions = @{
-    EditMode = 'Windows'
-    HistoryNoDuplicates = $true
+    EditMode                      = 'Windows'
+    HistoryNoDuplicates           = $true
     HistorySearchCursorMovesToEnd = $true
-    Colors = @{
-        Command = '#87CEEB'  # SkyBlue (pastel)
+    Colors                        = @{
+        Command   = '#87CEEB'  # SkyBlue (pastel)
         Parameter = '#98FB98'  # PaleGreen (pastel)
-        Operator = '#FFB6C1'  # LightPink (pastel)
-        Variable = '#DDA0DD'  # Plum (pastel)
-        String = '#FFDAB9'  # PeachPuff (pastel)
-        Number = '#B0E0E6'  # PowderBlue (pastel)
-        Type = '#F0E68C'  # Khaki (pastel)
-        Comment = '#D3D3D3'  # LightGray (pastel)
-        Keyword = '#8367c7'  # Violet (pastel)
-        Error = '#FF6347'  # Tomato (keeping it close to red for visibility)
+        Operator  = '#FFB6C1'  # LightPink (pastel)
+        Variable  = '#DDA0DD'  # Plum (pastel)
+        String    = '#FFDAB9'  # PeachPuff (pastel)
+        Number    = '#B0E0E6'  # PowderBlue (pastel)
+        Type      = '#F0E68C'  # Khaki (pastel)
+        Comment   = '#D3D3D3'  # LightGray (pastel)
+        Keyword   = '#8367c7'  # Violet (pastel)
+        Error     = '#FF6347'  # Tomato (keeping it close to red for visibility)
     }
-    PredictionSource = 'History'
-    PredictionViewStyle = 'ListView'
-    BellStyle = 'None'
+    PredictionSource              = 'History'
+    PredictionViewStyle           = 'ListView'
+    BellStyle                     = 'None'
 }
 Set-PSReadLineOption @PSReadLineOptions
 
@@ -943,8 +616,8 @@ Set-PSReadLineOption -HistorySavePath "$env:APPDATA\PSReadLine\CommandHistory.tx
 $scriptblock = {
     param($wordToComplete, $commandAst, $cursorPosition)
     $customCompletions = @{
-        'git' = @('status', 'add', 'commit', 'push', 'pull', 'clone', 'checkout')
-        'npm' = @('install', 'start', 'run', 'test', 'build')
+        'git'  = @('status', 'add', 'commit', 'push', 'pull', 'clone', 'checkout')
+        'npm'  = @('install', 'start', 'run', 'test', 'build')
         'deno' = @('run', 'compile', 'bundle', 'test', 'lint', 'fmt', 'cache', 'info', 'doc', 'upgrade')
     }
 
@@ -960,9 +633,9 @@ Register-ArgumentCompleter -Native -CommandName git, npm, deno -ScriptBlock $scr
 $scriptblock = {
     param($wordToComplete, $commandAst, $cursorPosition)
     dotnet complete --position $cursorPosition $commandAst.ToString() |
-        ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-        }
+    ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
 }
 Register-ArgumentCompleter -Native -CommandName dotnet -ScriptBlock $scriptblock
 
@@ -994,7 +667,8 @@ function Get-Theme {
             return
         }
         oh-my-posh init pwsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/cobalt2.omp.json | Invoke-Expression
-    } else {
+    }
+    else {
         oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/json.omp.json" | Invoke-Expression
     }
 }
@@ -1003,13 +677,15 @@ function Get-Theme {
 Get-Theme
 if (Get-Command zoxide -ErrorAction SilentlyContinue) {
     Invoke-Expression (& { (zoxide init --cmd cd powershell | Out-String) })
-} else {
+}
+else {
     Write-Information "zoxide command not found. Attempting to install via winget..."
     try {
         winget install -e --id ajeetdsouza.zoxide
         Write-Information "zoxide installed successfully. Initializing..."
         Invoke-Expression (& { (zoxide init powershell | Out-String) })
-    } catch {
+    }
+    catch {
         Write-Error "Failed to install zoxide. Error: $_"
     }
 }
